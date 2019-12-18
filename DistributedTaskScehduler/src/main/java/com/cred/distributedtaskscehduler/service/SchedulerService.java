@@ -61,20 +61,25 @@ public class SchedulerService {
 
 				@Override
 				public void onSuccess(SendResult<String, String> result) {
-					masterTask.setStatus(TaskStatus.SUBMITTED);
 					log.info("Published successfully");
-
-					/*
-					 * TODO : Save this Master Task with updated Status To Redis
-					 */
+					masterTask.setStatus(TaskStatus.SUBMITTED);
+					resultService.updateTaskResult(masterTask); 
 					stringMonoSink.success(masterTask.getId());
 				}
 
 				@Override
 				public void onFailure(Throwable ex) {
-					masterTask.setStatus(TaskStatus.SUBMITION_FAILED);
-					log.error("Error while publishing Task for execution", ex);
-					stringMonoSink.error(ex);
+					try {
+						masterTask.setStatus(TaskStatus.SUBMITION_FAILED);
+						resultService.updateTaskResult(masterTask);
+						log.error("Error while publishing Task for execution, [Retrying after 30 Seconds]", ex);
+						Thread.sleep(30000);
+						submitTask(masterTask);
+					} catch (InterruptedException e) {
+						log.error(e.getMessage());
+						Thread.currentThread().interrupt();
+						stringMonoSink.error(ex);
+					}
 				}
 			});
 		});

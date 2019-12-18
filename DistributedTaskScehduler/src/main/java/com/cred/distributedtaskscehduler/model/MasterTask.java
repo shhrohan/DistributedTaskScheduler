@@ -28,6 +28,8 @@ public class MasterTask implements Serializable{
 	List<Object> inputList;
 	String variableJson;
 	String templateFunction;
+	int chunksToExecute = 1;
+	int chunksExecuted = 0;
 
 	public MasterTask(String variableJson, String templateFunction) {
 		this.variableJson = variableJson;

@@ -16,6 +16,7 @@ import org.springframework.util.concurrent.ListenableFutureCallback;
 import com.cred.distributedtaskscehduler.config.ProjectConfiguraton;
 import com.cred.distributedtaskscehduler.model.ChildTask;
 import com.cred.distributedtaskscehduler.model.MasterTask;
+import com.cred.distributedtaskscehduler.redis.ResultCacheService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,9 +34,12 @@ public class MasterTaskExecutionService {
 
 	@Autowired
 	ProjectConfiguraton configuraton;
-	
+
 	@Autowired
 	SchedulerService schedulerService;
+
+	@Autowired
+	ResultCacheService cacheService;
 
 	@Autowired
 	private KafkaTemplate<String, String> kafkaTemplate;
@@ -55,19 +59,27 @@ public class MasterTaskExecutionService {
 			String runFunction = getActualFunctionToRun(masterTask);
 
 			int availableWorkerNodes = schedulerService.getAvailableWorkerNodeCount();
+			masterTask.setChunksToExecute(availableWorkerNodes);
 			int i = 0;
 			int breaks = masterTask.getInputList().size() / availableWorkerNodes;
 			do {
-				publishChildTask(new ChildTask(masterTask.getId() ,masterTask.getInputList().subList(i, breaks), runFunction));
+				publishChildTask(
+						new ChildTask(masterTask.getId(), masterTask.getInputList().subList(i, breaks), runFunction));
 				i = breaks;
 				breaks += breaks;
 
 				if (breaks >= masterTask.getInputList().size()) {
 					breaks = masterTask.getInputList().size() - 1;
-					publishChildTask(new ChildTask(masterTask.getId() ,masterTask.getInputList().subList(i, breaks), runFunction));
+					publishChildTask(new ChildTask(masterTask.getId(), masterTask.getInputList().subList(i, breaks),
+							runFunction));
 					break;
 				}
 			} while (breaks < masterTask.getInputList().size());
+
+			/*
+			 * Update redis with master task's chunks
+			 */
+			cacheService.updateTaskResult(masterTask);
 
 		} catch (Exception ex) {
 			log.error("received error while reading MasterTask message from kafka", ex);
@@ -75,9 +87,10 @@ public class MasterTaskExecutionService {
 	}
 
 	private void publishChildTask(ChildTask childTask) {
-		
-		ListenableFuture<SendResult<String, String>> future = kafkaTemplate.send(configuraton.getPubsubChildTaskTopic(), gson.toJson(childTask));
-		
+
+		ListenableFuture<SendResult<String, String>> future = kafkaTemplate.send(configuraton.getPubsubChildTaskTopic(),
+				gson.toJson(childTask));
+
 		future.addCallback(new ListenableFutureCallback<SendResult<String, String>>() {
 
 			@Override
@@ -87,10 +100,18 @@ public class MasterTaskExecutionService {
 
 			@Override
 			public void onFailure(Throwable ex) {
-				log.error("Error while publishing Task for execution", ex);
+				try {
+					log.error("Error while publishing Task for execution Waiting 30 Secs before attempting to publish",
+							ex);
+					Thread.sleep(30000);
+					publishChildTask(childTask);
+				} catch (InterruptedException e) {
+					log.error("", e);
+					Thread.currentThread().interrupt();
+				}
 			}
 		});
-		
+
 	}
 
 	private String getActualFunctionToRun(MasterTask masterTask) throws JsonProcessingException {

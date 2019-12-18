@@ -12,10 +12,12 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import com.cred.distributedtaskscehduler.model.ChildTask;
+import com.cred.distributedtaskscehduler.redis.ResultCacheService;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -29,6 +31,9 @@ public class UnitTaskExecutionService {
 	private CountDownLatch latch;
 	private ExecutorService e;
 
+	@Autowired
+	private ResultCacheService cacheService;
+	
 	@PostConstruct
 	private void init() {
 		latch = new CountDownLatch(Runtime.getRuntime().availableProcessors());
@@ -53,7 +58,8 @@ public class UnitTaskExecutionService {
 
 			if (breaks >= childTask.getInputList().size()) {
 				breaks = childTask.getInputList().size() - 1;
-				executeChildTaskShard(childTask.getMasterTaskId(), childTask.getInputList().subList(i, breaks),
+				executeChildTaskShard(childTask.getMasterTaskId(), 
+						childTask.getInputList().subList(i, breaks),
 						threadId++, childTask.getRunFunction());
 				break;
 			}
@@ -66,9 +72,6 @@ public class UnitTaskExecutionService {
 							+ "]");
 				} else {
 					log.info("All Child Threads have Finished");
-					/*
-					 * TODO : call Redis to update master task status
-					 */
 					break;
 				}
 			}
@@ -81,7 +84,6 @@ public class UnitTaskExecutionService {
 
 		WorkerThread worker = new WorkerThread(masterTaskId, subList, threadId, runFunction);
 		e.submit(worker);
-
 	}
 
 	private class WorkerThread implements Runnable {
@@ -150,6 +152,7 @@ public class UnitTaskExecutionService {
 
 				if (ranOK) {
 					log.info("All inputs for Workthread [id : " + this.threadId + "] ran OK");
+					cacheService.incrementChunksCompleted(jobId);
 					latch.countDown();
 				} else {
 					log.error("NOT All inputs for Workthread [id : " + this.threadId
@@ -157,6 +160,7 @@ public class UnitTaskExecutionService {
 					latch.countDown();
 				}
 
+				
 			} catch (Exception ex) {
 				log.error("Workerthread [id : " + this.threadId + "] for job [jobId : " + this.jobId
 						+ "] returned with : [ERROR]", ex);
