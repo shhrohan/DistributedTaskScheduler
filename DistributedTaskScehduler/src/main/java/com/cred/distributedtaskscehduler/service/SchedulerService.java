@@ -70,7 +70,7 @@ public class SchedulerService {
 				@Override
 				public void onFailure(Throwable ex) {
 					try {
-						masterTask.setStatus(TaskStatus.SUBMITION_FAILED);
+						masterTask.setStatus(TaskStatus.RETRYING);
 						resultService.updateTaskResult(masterTask);
 						log.error("Error while publishing Task for execution, [Retrying after 30 Seconds]", ex);
 						Thread.sleep(30000);

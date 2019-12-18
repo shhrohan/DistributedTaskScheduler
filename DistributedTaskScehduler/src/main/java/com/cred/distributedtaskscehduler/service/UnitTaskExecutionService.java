@@ -45,6 +45,8 @@ public class UnitTaskExecutionService {
 
 		log.info("Received message from kafka : " + message);
 		ChildTask childTask = gson.fromJson(message, ChildTask.class);
+		this.cacheService.incrementChunksCompleted(childTask.getMasterTaskId());
+		
 
 		int availableProcessors = Runtime.getRuntime().availableProcessors();
 		int i = 0;
@@ -75,6 +77,7 @@ public class UnitTaskExecutionService {
 					break;
 				}
 			}
+			this.cacheService.incrementChunksCompleted(childTask.getMasterTaskId());
 		} catch (Exception ex) {
 			log.error("Error while running child task for Master task (id : " + childTask.getMasterTaskId() + "] ", ex);
 		}
@@ -152,7 +155,6 @@ public class UnitTaskExecutionService {
 
 				if (ranOK) {
 					log.info("All inputs for Workthread [id : " + this.threadId + "] ran OK");
-					cacheService.incrementChunksCompleted(jobId);
 					latch.countDown();
 				} else {
 					log.error("NOT All inputs for Workthread [id : " + this.threadId

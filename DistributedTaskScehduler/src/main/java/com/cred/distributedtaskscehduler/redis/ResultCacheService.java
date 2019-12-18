@@ -49,6 +49,25 @@ public class ResultCacheService {
 		});
 	}
 	
+	public void markTaskQueued(String taskId) {
+
+		/*
+		 * Below operation happens in Transactions
+		 */
+		
+		redisTemplate.execute(new SessionCallback<List<Object>>() {
+			@SuppressWarnings("unchecked")
+			@Override
+			public List<Object> execute(RedisOperations operations) {
+				operations.multi();
+				MasterTask cachedTask =  gson.fromJson(operations.opsForValue().get(taskId).toString(), MasterTask.class);
+				cachedTask.setStatus(TaskStatus.INPROGRESS);
+				operations.opsForSet().add(taskId, cachedTask);
+				return operations.exec();
+			}
+		});
+	}
+	
 	public void incrementChunksCompleted(String taskId) {
 
 		/*
@@ -71,26 +90,6 @@ public class ResultCacheService {
 		});
 	}
 	
-	public void markTaskCompleted(MasterTask task) {
-
-		/*
-		 * Below operation happens in Transactions
-		 */
-		
-		redisTemplate.execute(new SessionCallback<List<Object>>() {
-			@SuppressWarnings("unchecked")
-			@Override
-			public List<Object> execute(RedisOperations operations) {
-				operations.multi();
-				MasterTask cachedTask =  gson.fromJson(operations.opsForValue().get(task.getId()).toString(), MasterTask.class);
-				
-				cachedTask.setStatus(task.getStatus());
-				operations.opsForSet().add(task.getId(), cachedTask);
-				return operations.exec();
-			}
-		});
-	}
-
 	public Mono<MasterTask> getMasterTaskResult(String taskId) {
 
 		return userOps.opsForValue().get(taskId).flatMap( taskJson -> {
