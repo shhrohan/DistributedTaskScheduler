@@ -25,6 +25,8 @@
   
 #  Assumptions :
 1. If there are multiple Schedulers working concurrently then, They will have to be working under publically exposed Loadbalancer which will route client request to 1 of the working instances of the server nodes
+
+2. The implentation support scope is limited bash scripts. this can be easilly enhanced to spport and run other languages as well given more time and efort
 # Work Flow 
 a) 1 or more scheduler working behind an NginX Load balancer server. [Not part of this assignment. But an assumption]
 
