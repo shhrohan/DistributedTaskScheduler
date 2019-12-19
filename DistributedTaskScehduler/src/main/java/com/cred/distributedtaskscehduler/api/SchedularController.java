@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.cred.distributedtaskscehduler.config.ProjectConfiguraton;
+import com.cred.distributedtaskscehduler.enums.TaskStatus;
 import com.cred.distributedtaskscehduler.model.MasterTask;
 import com.cred.distributedtaskscehduler.service.SchedulerService;
 
@@ -38,16 +39,17 @@ public class SchedularController {
 	}
 
 	@PostMapping(value = "/create", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE })
-	public Mono<ResponseEntity<String>> create(MasterTask masterTask) {
+	public Mono<ResponseEntity<MasterTask>> create(MasterTask masterTask) {
 
 		log.info("Received new task for execution : " + masterTask);
 		
 		return schedulerService
-			.submitTask(masterTask)
-			.flatMap(masterTaskId -> Mono.just(new ResponseEntity<String>(masterTaskId, HttpStatus.ACCEPTED)))
+			.submitTask(masterTask, 1)
+			.flatMap(masterTaskSaved -> Mono.just(new ResponseEntity<MasterTask>(masterTaskSaved, HttpStatus.ACCEPTED)))
 			.switchIfEmpty(Mono.defer(() -> {
 				log.error("Could not submit Task : " + masterTask.getId());
-			return Mono.just(new ResponseEntity<String>("", HttpStatus.ACCEPTED));
+				masterTask.setStatus(TaskStatus.SUBMITION_FAILED);
+			return Mono.just(new ResponseEntity<MasterTask>(masterTask, HttpStatus.INTERNAL_SERVER_ERROR));
 		}));
 	}
 

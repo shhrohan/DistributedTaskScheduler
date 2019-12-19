@@ -25,8 +25,13 @@ import reactor.core.publisher.Mono;
 @Service
 public class SchedulerService {
 
+	private final int MAX_SUBMIT_ATTEMPTS = 10;
+	
 	@Autowired
 	private KafkaTemplate<String, String> kafkaTemplate;
+	
+	
+	
 
 	@Autowired
 	ProjectConfiguraton configuraton;
@@ -48,9 +53,16 @@ public class SchedulerService {
 		return workerNodes.size();
 	}
 
-	public Mono<String> submitTask(MasterTask masterTask) {
+	public Mono<MasterTask> submitTask(MasterTask masterTask, int attemptNumber) {
 
 		log.info("Publishing Task For Execution : " + masterTask);
+		
+		if(attemptNumber > MAX_SUBMIT_ATTEMPTS) {
+			
+			masterTask.setStatus(TaskStatus.SUBMITION_FAILED);
+			return Mono.just(masterTask); 
+		}
+		
 
 		return Mono.create(stringMonoSink -> {
 
@@ -64,7 +76,7 @@ public class SchedulerService {
 					log.info("Published successfully");
 					masterTask.setStatus(TaskStatus.SUBMITTED);
 					resultService.updateTaskResult(masterTask); 
-					stringMonoSink.success(masterTask.getId());
+					stringMonoSink.success(masterTask);
 				}
 
 				@Override
@@ -74,7 +86,7 @@ public class SchedulerService {
 						resultService.updateTaskResult(masterTask);
 						log.error("Error while publishing Task for execution, [Retrying after 30 Seconds]", ex);
 						Thread.sleep(30000);
-						submitTask(masterTask);
+						submitTask(masterTask, attemptNumber + 1);
 					} catch (InterruptedException e) {
 						log.error(e.getMessage());
 						Thread.currentThread().interrupt();
