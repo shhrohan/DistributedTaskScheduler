@@ -40,11 +40,17 @@ b) client will send a serialized MasterTask Object over a rest (POst) call.
 c) Client will poll execution Status of the task submited. API is made available already in the implementation is scheduler.
   
 d) Once client submits the task
+
     d1) scheduler saves it to Redis with appropriate status.
+    
     d2) publishes it to Kafka for initiating Execution
+    
     d3) Any of the running Scheduler subscriber recieves it
+    
     d4) prepares executable function after replacing variables in templateFunction.
+    
     d5) devides the task input load depending on the available worker nodes
+    
     d6) pubilsh individual task shard to kafka for Worker consumers to execute it.
     
 f) the scheduler consumer instance, will have hear beats available from all the worker nodes up and running. 
@@ -54,11 +60,18 @@ f) the scheduler consumer instance, will have hear beats available from all the 
     f2) based on the number of worker nodes available, the input list that is to be processed by the command will be devided and further published to KAFKA again in chunked format.
   
 g) Worker node will consume the shard of the task it has to execute. 
+
     g1) it will even furthe devide the shard based on number parallel cores avaliable at its disposal. 
+    
     g2) To have to maximum possible concurrency in terms of shards execution
+    
     g3) each thread will mutate the latch supplied to it.
+    
     g4) once latch is reached to 0 on the worked consumer, then this worker consumer will increment the chunks executed variable of the Master task and update redi
+    
     g5) client will automaticlly see task status as finished once all Worker consumers have executed their shards.
+    
     g6) Each worker consumer initiate Redis Transaction  to update its part of the work done.
+    
 
 k) All redis updates are supposed to happen in atomic transactions. to avoid stale ready.
